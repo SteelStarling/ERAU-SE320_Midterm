@@ -1,12 +1,13 @@
 """Code for the SE320 Midterm Exam Assignment
-Author: Taylor Hancock, editing code by Wolf Paulus
+Author: Taylor Hancock
+        Editing code by Wolf Paulus
 Date:   03/03/2025
 Class:  SE320 - Software Construction
 Assignment: Midterm Exam Assignment
 """
 
 import functools
-from typing import List
+from typing import List, Self
 
 def log_transaction(func: callable) -> callable:
     """Logs any transaction that changes the account balance"""
@@ -26,7 +27,7 @@ def validate_amount(func: callable) -> callable:
       raises a ValueError is validation fails
     """
     @functools.wraps(func)
-    def wrapper(self, amount):
+    def wrapper(self, amount, *args, **kwargs):
         # check if out of bounds
         if amount < 0:
             raise ValueError("Negative amount invalid")
@@ -34,7 +35,7 @@ def validate_amount(func: callable) -> callable:
             raise ValueError("Transaction too large")
 
         # return function response
-        return func(self, amount)
+        return func(self, amount, *args, **kwargs)
     return wrapper
 
 
@@ -73,6 +74,30 @@ class BankAccount:
     def get_transaction_history(self) -> List[str]:
         """Return list of all transactions"""
         return self.transactions
+    
+    @validate_amount # prevents being given an invalid amount initially
+    def transfer_funds(self, amount: float, targetAccount: Self) -> None:
+        """Transfers funds from the specified account into the target account
+        amount: how much money to transfer
+        targetAccount: the account to transfer the money to
+        """
+
+        # Attempt to withdraw money (otherwise it crashes out)
+        self.withdraw(amount)
+
+        # if successful, deposit money
+        try:
+            targetAccount.deposit(amount)
+        except Exception as e:
+            print(f"Transfer failed: {e}")
+            self.deposit(amount)
+
+        """with how this is setup, it will never fail to deposit, but,
+        for completeness's sake, I'm adding code to handle a failure,
+        as I figured it could be fun. In the case of failure, it will
+        simply try once to deposit the money back in the account, and
+        if it crashes out, it will break (not good for a real banking
+        system, but good enough for this assignment, I presume)"""
 
 
 if __name__ == "__main__":
@@ -84,6 +109,7 @@ if __name__ == "__main__":
     # Test transactions
     account.deposit(500)    # Should work
     account.withdraw(200)   # Should work
+
     try:
         account.deposit(1500)   # Should fail (over $1000)
     except ValueError as e:
@@ -94,5 +120,22 @@ if __name__ == "__main__":
     except ValueError as e:
         print(f"Withdraw failed: {e}")
 
+    account_b = BankAccount("00001", "Jane Roe")
+
+    account_b.deposit(400)
+
+    try:
+        account_b.transfer_funds(600, account)   # Should fail (insufficient funds)
+    except ValueError as e:
+        print(f"Transfer failed: {e}")
+
+    try:
+        account_b.transfer_funds(1000, account)   # Should fail (over 1000)
+    except ValueError as e:
+        print(f"Transfer failed: {e}")
+
+    account_b.transfer_funds(200, account)   # Should succeed
+
     # Print history
     print(account.get_transaction_history())
+    print(account_b.get_transaction_history())
